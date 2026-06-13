@@ -62,12 +62,30 @@ void applyParallax(std::vector<PaintLayer>& layers,
     sortByDepth(layers);
 
     for (auto& layer : layers) {
+        if (layer.name == "Robot") {
+            // Robot stays static relative to the camera/screen so it does not scroll off-screen
+            if (layer.drawFn) layer.drawFn();
+            continue;
+        }
+
         // Parallax factor: deeper layers move less
         float factor = (maxDepth - layer.depth) / maxDepth;
-        float offset  = scrollAmount * factor;
+        float offset = scrollAmount * factor;
+
+        // Wrap offset to [-WINDOW_WIDTH, 0] for seamless tiling across the screen width
+        float wrappedOffset = std::fmod(offset, (float)WINDOW_WIDTH);
+        if (wrappedOffset > 0) {
+            wrappedOffset -= WINDOW_WIDTH;
+        }
+
+        // Draw twice for seamless looping coverage across the screen width
+        glPushMatrix();
+        glTranslatef(wrappedOffset, 0.0f, 0.0f);
+        if (layer.drawFn) layer.drawFn();
+        glPopMatrix();
 
         glPushMatrix();
-        glTranslatef(offset, 0.0f, 0.0f);
+        glTranslatef(wrappedOffset + WINDOW_WIDTH, 0.0f, 0.0f);
         if (layer.drawFn) layer.drawFn();
         glPopMatrix();
     }

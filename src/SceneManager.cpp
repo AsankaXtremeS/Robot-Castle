@@ -423,7 +423,7 @@ void SceneManager::renderDrawing()
     else if (p < 0.50f) algLabel = "Bresenham Line (Castle Walls)";
     else if (p < 0.65f) algLabel = "Midpoint Circle Algorithm";
     else                algLabel = "Bresenham Circle Algorithm";
-    Renderer::drawAlgorithmBadge(algLabel);
+    m_scenes[static_cast<int>(m_current)].subtitle = algLabel;
 }
 
 // =============================================================================
@@ -568,7 +568,7 @@ void SceneManager::renderColouring()
     if      (p < 0.2f) algLabel = "Scan-Line Polygon Fill";
     else if (p < 0.5f) algLabel = "Flood Fill Algorithm";
     else                algLabel = "Boundary Fill Algorithm";
-    Renderer::drawAlgorithmBadge(algLabel);
+    m_scenes[static_cast<int>(m_current)].subtitle = algLabel;
 }
 
 
@@ -758,55 +758,101 @@ void SceneManager::renderPortal()
 
     // ═══════════════════════════════════════════════════════════════════════
     //  PHASE 4 (p 0.76-1.0): Sutherland-Hodgman Polygon Clipping
-    //  Rotating Golden Crown
+    //  Rotating Alien Ship
     // ═══════════════════════════════════════════════════════════════════════
     if (p > 0.76f) {
         float shP = clamp((p - 0.76f) / 0.24f, 0.0f, 1.0f);
 
-        // Crown center
+        // Alien ship center
         float ccX = vp.xMin + (vp.xMax - vp.xMin) * 0.78f;
         float ccY = (vp.yMin + vp.yMax) * 0.5f;
 
-        // Base shape of a crown (9 vertices CCW relative to center)
-        std::vector<Point2D> baseCrown = {
-            {-70, -40}, {70, -40}, {80, 20}, {60, 40}, {30, 10}, {0, 60}, {-30, 10}, {-60, 40}, {-80, 20}
+        // Base shapes for the layered alien ship
+        std::vector<Point2D> baseBeam = {
+            {-20, -22}, {20, -22}, {150, -250}, {-150, -250}
+        };
+        std::vector<Point2D> baseThruster = {
+            {-25, -22}, {-15, -38}, {0, -42}, {15, -38}, {25, -22}
+        };
+        std::vector<Point2D> baseSaucer = {
+            {-80, 0}, {-65, -15}, {-35, -23}, {0, -25}, {35, -23}, {65, -15},
+            {80, 0}, {65, 15}, {35, 23}, {0, 25}, {-35, 23}, {-65, 15}
+        };
+        std::vector<Point2D> baseDome = {
+            {-32, 10}, {-30, 25}, {-20, 42}, {0, 50}, {20, 42}, {30, 25}, {32, 10}
         };
 
-        // Rotate and scale the crown
+        // Rotating lights on the saucer (relative to center)
+        std::vector<Point2D> baseLights = {
+            {-55, -5}, {-25, -12}, {0, -14}, {25, -12}, {55, -5},
+            {-60, 5}, {60, 5}
+        };
+
+        // Rotate and scale transformations
         float angle = m_elapsed * 1.3f;
-        float scale = 1.6f;
-        std::vector<Point2D> transformedCrown;
-        for (auto& pt : baseCrown) {
-            float rx = (pt.x * std::cos(angle) - pt.y * std::sin(angle)) * scale;
-            float ry = (pt.x * std::sin(angle) + pt.y * std::cos(angle)) * scale;
-            transformedCrown.push_back({ccX + rx, ccY + ry});
+        float scale = 0.5f;
+
+        auto transformAndClip = [&](const std::vector<Point2D>& basePts,
+                                    const Color& fillColor,
+                                    const Color& borderColor,
+                                    bool drawWireframe) {
+            std::vector<Point2D> transPts;
+            for (auto& pt : basePts) {
+                float rx = (pt.x * std::cos(angle) - pt.y * std::sin(angle)) * scale;
+                float ry = (pt.x * std::sin(angle) + pt.y * std::cos(angle)) * scale;
+                transPts.push_back({ccX + rx, ccY + ry});
+            }
+
+            if (drawWireframe) {
+                Renderer::drawPolygon(transPts, Color(borderColor.r, borderColor.g, borderColor.b, shP * 0.25f));
+            }
+
+            std::vector<Point2D> clipped = sutherlandHodgmanClip(transPts, vp);
+            if (!clipped.empty()) {
+                Renderer::drawFilledPolygon(clipped, fillColor);
+                Renderer::drawPolygon(clipped, borderColor);
+            }
+        };
+
+        // 1. Draw unclipped/clipped background tractor beam (doesn't rotate with ship, just scales)
+        std::vector<Point2D> transBeam;
+        for (auto& pt : baseBeam) {
+            float rx = pt.x * scale;
+            float ry = pt.y * scale;
+            transBeam.push_back({ccX + rx, ccY + ry});
+        }
+        std::vector<Point2D> clippedBeam = sutherlandHodgmanClip(transBeam, vp);
+        if (!clippedBeam.empty()) {
+            Renderer::drawFilledPolygon(clippedBeam, Color(1.0f, 1.0f, 0.70f, shP * 0.25f));
         }
 
-        // Draw unclipped crown wireframe in background (dim white/grey)
-        Renderer::drawPolygon(transformedCrown, Color(0.40f, 0.40f, 0.50f, shP * 0.35f));
+        // 2. Draw Thruster (green part at bottom)
+        transformAndClip(baseThruster, Color(0.0f, 0.95f, 0.20f, shP), Color(0.0f, 0.5f, 0.1f, shP), true);
 
-        // Clip the crown polygon to viewport
-        std::vector<Point2D> clipped = sutherlandHodgmanClip(transformedCrown, vp);
-        if (!clipped.empty()) {
-            // Draw filled golden crown inside (accepted portion)
-            Renderer::drawFilledPolygon(clipped, Color(0.95f, 0.75f, 0.15f, shP * 0.7f));
-            Renderer::drawPolygon(clipped, Color(1.0f, 0.95f, 0.50f, shP));
+        // 3. Draw Saucer (dark purple body)
+        transformAndClip(baseSaucer, Color(0.15f, 0.12f, 0.28f, shP), Color(0.05f, 0.04f, 0.12f, shP), true);
 
-            // Draw small crown jewels (sparkly stars) inside the clipped shape
-            for (auto& pt : clipped) {
-                // If the vertex is inside viewport boundaries, draw a small diamond jewel on it
-                if (pointClip(pt.x, pt.y, vp)) {
-                    float jewelPulse = 0.5f + 0.5f * std::sin(m_elapsed * 6.0f + pt.x);
-                    Renderer::drawPoint(pt.x, pt.y, 6.0f, Color(0.0f, 0.9f, 1.0f, shP * jewelPulse));
-                }
+        // 4. Draw Dome (cyan window)
+        transformAndClip(baseDome, Color(0.40f, 0.92f, 0.95f, shP * 0.85f), Color(0.15f, 0.60f, 0.70f, shP), true);
+
+        // 5. Draw Glowing Lights (green beacons on saucer)
+        for (auto& pt : baseLights) {
+            float rx = (pt.x * std::cos(angle) - pt.y * std::sin(angle)) * scale;
+            float ry = (pt.x * std::sin(angle) + pt.y * std::cos(angle)) * scale;
+            float lx = ccX + rx;
+            float ly = ccY + ry;
+
+            if (pointClip(lx, ly, vp)) {
+                float lightPulse = 0.5f + 0.5f * std::sin(m_elapsed * 8.0f + pt.x);
+                Renderer::drawPoint(lx, ly, 7.0f, Color(0.0f, 1.0f, 0.3f, shP * lightPulse));
             }
         }
 
         if (shP > 0.20f) {
             float la = clamp((shP - 0.20f) * 2.5f, 0.0f, 1.0f);
             Renderer::drawText(
-                "Sutherland-Hodgman: Floating golden crown clipped edge-by-edge to the viewport boundary",
-                vp.xMin + 12, vp.yMin + 74, Color(1.0f, 0.85f, 0.30f, la));
+                "Sutherland-Hodgman: Floating alien ship clipped edge-by-edge to the viewport boundary",
+                vp.xMin + 12, vp.yMin + 74, Color(0.40f, 0.95f, 0.60f, la));
         }
     }
 
@@ -822,7 +868,7 @@ void SceneManager::renderPortal()
     else if (p < 0.57f)  algLabel = "Cohen-Sutherland Line Clipping";
     else if (p < 0.76f)  algLabel = "Liang-Barsky Line Clipping";
     else                  algLabel = "Sutherland-Hodgman Polygon Clipping";
-    Renderer::drawAlgorithmBadge(algLabel);
+    m_scenes[static_cast<int>(m_current)].subtitle = algLabel;
 }
 
 
@@ -1017,7 +1063,7 @@ void SceneManager::renderTransform()
     else if (p < 0.45f) algLabel = "Rotation Matrix R(theta)";
     else if (p < 0.65f) algLabel = "Scaling Matrix S(sx,sy)";
     else                 algLabel = "Composite Transformations";
-    Renderer::drawAlgorithmBadge(algLabel);
+    m_scenes[static_cast<int>(m_current)].subtitle = algLabel;
 }
 
 // =============================================================================
@@ -1143,7 +1189,7 @@ void SceneManager::renderCinematic()
     }
 
     // Depth sort label
-    Renderer::drawAlgorithmBadge("Painter's Algorithm (Depth Sort + Parallax)");
+    m_scenes[static_cast<int>(m_current)].subtitle = "Painter's Algorithm (Depth Sort + Parallax)";
 
     // Show depth order in corner
     if (p < 0.5f) {
