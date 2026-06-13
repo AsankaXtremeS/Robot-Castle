@@ -1,8 +1,7 @@
 # The Little Robot Builds a Digital Kingdom
 
 A complete Computer Graphics algorithms demonstration built with **C++**, **OpenGL**, and **FreeGLUT**.  
-A 2.5D cartoon-style animated short (~2.5 minutes) where a cute robot builds a colorful kingdom while
-demonstrating **14 computer graphics algorithms** from scratch.
+A cartoon-style animated short (~2.5 minutes) where a cute robot builds a colorful kingdom while demonstrating **15 computer graphics algorithms** from scratch.
 
 ---
 
@@ -22,8 +21,9 @@ demonstrating **14 computer graphics algorithms** from scratch.
 | Scene 3 | Liang-Barsky Line Clipping |
 | Scene 3 | Sutherland-Hodgman Polygon Clipping |
 | Scene 4 | 3×3 Transformation Matrices (T, R, S, Composite) |
-| Scene 5 | Isometric Projection Matrix |
-| Scene 6 | Painter's Algorithm + Parallax |
+| Scene 5 | Painter's Algorithm (Depth Sort) |
+| Scene 5 | Parallax Scrolling |
+| Scene 5 | Particle System (Fireworks) |
 
 ---
 
@@ -44,7 +44,6 @@ RobotKingdom/
 │       ├── Filling.h                ← Scan-line, Flood fill, Boundary fill
 │       ├── Clipping.h               ← Point, Cohen-S, Liang-B, Sutherland-H
 │       ├── Transformations.h        ← 3×3 matrices (T/R/S/Composite)
-│       ├── Projection.h             ← Isometric projection
 │       └── PaintersAlgorithm.h      ← Depth sort + parallax
 └── src/
     ├── main.cpp                     ← FreeGLUT setup + main loop
@@ -57,7 +56,6 @@ RobotKingdom/
         ├── Filling.cpp
         ├── Clipping.cpp
         ├── Transformations.cpp
-        ├── Projection.cpp
         └── PaintersAlgorithm.cpp
 ```
 
@@ -120,7 +118,7 @@ g++ -std=c++17 -O2 ^
     src/main.cpp src/Renderer.cpp src/Robot.cpp src/SceneManager.cpp ^
     src/Algorithms/LineDrawing.cpp src/Algorithms/CircleDrawing.cpp ^
     src/Algorithms/Filling.cpp src/Algorithms/Clipping.cpp ^
-    src/Algorithms/Transformations.cpp src/Algorithms/Projection.cpp ^
+    src/Algorithms/Transformations.cpp ^
     src/Algorithms/PaintersAlgorithm.cpp ^
     -IC:\freeglut\include -LC:\freeglut\lib ^
     -lfreeglut -lopengl32 -lglu32 ^
@@ -135,7 +133,7 @@ g++ -std=c++17 -O2 ^
 |---|---|
 | `SPACE` / `→` | Next scene |
 | `←` | Previous scene |
-| `1` – `7` | Jump directly to scene 1–7 |
+| `1` – `6` | Jump directly to scenes 1–6 |
 | `F` | Toggle full-screen |
 | `ESC` / `Q` | Quit |
 
@@ -143,25 +141,24 @@ g++ -std=c++17 -O2 ^
 
 ## Scene Descriptions
 
-| # | Scene | Duration | Algorithms |
+| # | Scene | Duration | Algorithms & Visualized Concepts |
 |---|---|---|---|
-| 1 | The Robot Arrives | 5s | (intro / setup) |
-| 2 | Drawing the Kingdom | 20s | DDA Line, Bresenham Line, Midpoint Circle, Bresenham Circle |
-| 3 | Colouring the Kingdom | 20s | Scan-Line Fill, Flood Fill, Boundary Fill |
-| 4 | The Magic Portal | 20s | Point Clip, Cohen-Sutherland, Liang-Barsky, Sutherland-Hodgman |
-| 5 | Kingdom Transformations | 25s | Translation, Rotation, Scaling, Composite (3×3 matrices) |
-| 6 | Isometric Upgrade | 25s | Isometric Projection Matrix |
-| 7 | Grand Finale | 25s | Painter's Algorithm, Parallax Scrolling, Fireworks |
+| 0 | The Robot Arrives | 5s | Introductory scene and environment initialization. |
+| 1 | Drawing the Kingdom | 20s | DDA Line, Bresenham Line (castle walls), Midpoint Circle, Bresenham Circle (cart wheels). |
+| 2 | Colouring the Kingdom | 20s | Scan-Line Fill (towers/roofs), Flood Fill (river), Boundary Fill (windows, gate, garden). |
+| 3 | The Magic Portal | 20s | Point Clip (fireflies), Cohen-Sutherland (lighthouse beams), Liang-Barsky (lasers), Sutherland-Hodgman (layered alien ship: dome, saucer, thruster, tractor beam, lights). |
+| 4 | Kingdom Transformations | 25s | Translation (house sliding), Rotation (clock hands), Scaling (evergreen tree growth), Composite (orbiting/rotating sun). |
+| 5 | Grand Finale | 25s | Painter's Algorithm (depth sorting layers), Parallax Scrolling (looping background), Particle System (fireworks). |
 
 ---
 
 ## Architecture
 
-- **SceneManager** – singleton that tracks scene index, elapsed time, and transitions
-- **Timer-based animation** – GLUT timer at 60 FPS; each algorithm receives a `progress` ∈ [0,1] for smooth animation
-- **Algorithm isolation** – every algorithm is in its own `.cpp`/`.h` pair; **no** built-in OpenGL fill/clip functions are used
-- **Robot** – assembled from transformed primitives; animated via sine-wave joint angles
-- **Painter's Algorithm** – `std::stable_sort` by depth; parallax via GL matrix translation
+- **SceneManager** – Singleton orchestrating scene index, timing, fade transitions, and dynamic algorithm label updates.
+- **Timer-based animation** – Runs GLUT timer at 60 FPS; each algorithm receives a `progress` ∈ [0,1] for smooth, frame-independent animation.
+- **Algorithm isolation** – Core computer graphics algorithms are implemented from scratch in their own files without OpenGL's built-in fill or clip functions.
+- **Robot Model** – Procedurally assembled from primitive shapes and animated via sine-wave joint rotations.
+- **Painter's Algorithm** – Uses `std::stable_sort` by depth value; parallax translations are wrapped for seamless looping.
 
 ---
 
@@ -178,4 +175,4 @@ Add MinGW's `bin` directory to your PATH.
 
 **Slow performance:**  
 The flood fill / boundary fill visual simulation uses many draw calls.  
-Lower the window resolution or set `-O3` in build.bat for better performance.
+Lower the window resolution or build with optimizations (`-O2` or `-O3`) in the build/compilation stage.
