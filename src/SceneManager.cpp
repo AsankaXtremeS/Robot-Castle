@@ -56,8 +56,7 @@ SceneManager::SceneManager()
         {SceneID::COLOURING, "Scene 2 – Filling Algorithms", "Scan-Line · Flood Fill · Boundary Fill",              20.0f},
         {SceneID::PORTAL,    "Scene 3 – Clipping Algorithms","Point · Cohen-Sutherland · Liang-Barsky · S-Hodgman", 20.0f},
         {SceneID::TRANSFORM, "Scene 4 – Transformations",    "Translation · Rotation · Scaling · Composite",        25.0f},
-        {SceneID::ISOMETRIC, "Scene 5 – Isometric Projection","Building the 2.5D Kingdom",                          25.0f},
-        {SceneID::CINEMATIC, "Scene 6 – Grand Finale",        "Painter's Algorithm · Parallax · Fireworks",         25.0f},
+        {SceneID::CINEMATIC, "Scene 5 – Grand Finale",        "Painter's Algorithm · Parallax · Fireworks",         25.0f},
     };
 
     g_robot.x     = -80;
@@ -137,7 +136,6 @@ void SceneManager::renderScene(SceneID id)
     case SceneID::COLOURING: renderColouring(); break;
     case SceneID::PORTAL:    renderPortal();    break;
     case SceneID::TRANSFORM: renderTransform(); break;
-    case SceneID::ISOMETRIC: renderIsometric(); break;
     case SceneID::CINEMATIC: renderCinematic(); break;
     default: break;
     }
@@ -439,114 +437,140 @@ void SceneManager::renderColouring()
     drawGround();
 
     // ── Castle walls outlines (drawn quickly) ──────────────────────────────
-    // Left tower
-    Renderer::drawRect(200, 170, 80, 230, Palette::castleGray());
-    // Right tower
-    Renderer::drawRect(700, 170, 80, 230, Palette::castleGray());
-    // Connecting wall
-    Renderer::drawFilledRect(280, 350, 420, 50, Color(0.45f,0.45f,0.5f));
-    // Road
+    // Towers: base y=170 (ground level), top y=430
+    // Left tower outline
+    Renderer::drawRect(180, 170, 100, 260, Palette::castleGray());
+    // Right tower outline
+    Renderer::drawRect(700, 170, 100, 260, Palette::castleGray());
+    // Connecting arch wall (spans between towers near the top)
+    Renderer::drawFilledRect(280, 390, 420, 40, Color(0.42f, 0.42f, 0.48f));
+    // Road through castle gate
     Renderer::drawFilledRect(0, 125, WINDOW_WIDTH, 45, Palette::road());
 
-    // ── Scan-line fill castle towers ──────────────────────────────────────
+    // ── Phase 1: Scan-line fill – castle towers ───────────────────────────
     if (p > 0.0f) {
         float sfP = clamp(p * 5.0f, 0.0f, 1.0f);
-        // Left tower
+
+        // Left tower body (scan-line fill)
         Polygon2D leftTower;
-        leftTower.vertices = {{200,170},{280,170},{280,400},{200,400}};
+        leftTower.vertices = {{180,170},{280,170},{280,430},{180,430}};
         leftTower.fillColor = Palette::castleGray();
         scanLineFill(leftTower, sfP);
 
-        // Right tower
+        // Right tower body (scan-line fill)
         Polygon2D rightTower;
-        rightTower.vertices = {{700,170},{780,170},{780,400},{700,400}};
+        rightTower.vertices = {{700,170},{800,170},{800,430},{700,430}};
         rightTower.fillColor = Palette::castleGray();
         scanLineFill(rightTower, sfP);
 
-        // Roof triangles (Scan-Line)
+        // ── Roof triangles ON TOP of towers (scan-line) ──────────────────
         Polygon2D leftRoof;
-        leftRoof.vertices = {{190,170},{290,170},{240,300}};
+        leftRoof.vertices = {{165, 430}, {295, 430}, {230, 540}};
         leftRoof.fillColor = Palette::roofRed();
         scanLineFill(leftRoof, sfP);
 
         Polygon2D rightRoof;
-        rightRoof.vertices = {{690,170},{790,170},{740,300}};
+        rightRoof.vertices = {{685, 430}, {815, 430}, {750, 540}};
         rightRoof.fillColor = Palette::roofRed();
         scanLineFill(rightRoof, sfP);
+
+        // Battlement notches along top of connecting wall
+        if (sfP > 0.6f) {
+            float bP = clamp((sfP - 0.6f) / 0.4f, 0.0f, 1.0f);
+            Color bCol = Color(0.50f, 0.50f, 0.56f, bP);
+            for (int bx = 290; bx < 690; bx += 40) {
+                Renderer::drawFilledRect((float)bx, 430, 20, 22, bCol);
+            }
+        }
     }
 
-    // ── Simulate Flood Fill – river ────────────────────────────────────────
-    // We simulate by drawing expanding filled region from seed
+    // ── Phase 2: Flood Fill – river (moved down to flow through the grass) 
     if (p > 0.2f) {
         float ffP = clamp((p - 0.2f) * 4.0f, 0.0f, 1.0f);
-        // River shape (drawn as animated expanding polygon)
+
+        // River flows through grass at y=35-105
         std::vector<Point2D> riverVerts = {
-            {350, 80}, {450, 80}, {500, 50},
-            {1100,50}, {1150,80},{1100,120},
-            {500, 120},{450,110},{350,120}
+            {  0, 35}, {120, 47}, {280, 35},
+            {980, 35}, {1100,47}, {1280,35},
+            {1280,105}, {1100,93}, {980, 105},
+            {280, 105}, {120, 93}, {0, 105}
         };
         Polygon2D river;
         river.vertices  = riverVerts;
         river.fillColor = Palette::water();
-        scanLineFill(river, ffP); // visual proxy for flood fill
+        scanLineFill(river, ffP);
 
-        // Ripple circles on river (Midpoint circles)
-        if (ffP > 0.6f) {
-            float ripP = clamp((ffP-0.6f)*2.5f,0.0f,1.0f);
-            Color ripCol(0.5f, 0.7f, 1.0f, 0.6f);
-            midpointCircle(700, 85, 20, ripCol, ripP);
-            midpointCircle(900, 85, 15, ripCol, ripP);
+        // Ripple circles on river
+        if (ffP > 0.5f) {
+            float ripP = clamp((ffP - 0.5f) * 2.5f, 0.0f, 1.0f);
+            Color ripCol(0.6f, 0.82f, 1.0f, 0.7f);
+            midpointCircle(400,  70, 18, ripCol, ripP);
+            midpointCircle(760,  70, 14, ripCol, ripP);
+            midpointCircle(1060, 70, 16, ripCol, ripP);
         }
 
-        // Label
-        Renderer::drawText("Flood Fill: River", 355, 90, Color(1,1,1,ffP));
+        Renderer::drawText("Flood Fill: River", 20, 85,
+                           Color(1.0f, 1.0f, 1.0f, ffP));
     }
 
-    // ── Boundary Fill – windows ────────────────────────────────────────────
+    // ── Phase 3: Boundary Fill – windows, gate, garden (moved down to ground level)
     if (p > 0.5f) {
         float bfP = clamp((p - 0.5f) * 4.0f, 0.0f, 1.0f);
-        // Simulate boundary fill by drawing filled windows with animated alpha
+
+        // Windows in UPPER section of each tower (y=340–375)
         Color winCol = Palette::windowBlue();
         winCol.a = bfP;
-        // Left tower windows
-        Renderer::drawFilledRect(215, 310, 20, 25, winCol);
-        Renderer::drawFilledRect(245, 310, 20, 25, winCol);
-        // Right tower windows
-        Renderer::drawFilledRect(715, 310, 20, 25, winCol);
-        Renderer::drawFilledRect(745, 310, 20, 25, winCol);
-        // Gate arch (boundary fill shape)
-        Renderer::drawFilledRect(420, 350, 100, 50, Color(0.3f,0.15f,0.05f,bfP));
+        Renderer::drawFilledRect(195, 340, 28, 35, winCol);
+        Renderer::drawFilledRect(237, 340, 28, 35, winCol);
+        Renderer::drawRect(195, 340, 28, 35, Color(0.3f, 0.5f, 0.8f, bfP));
+        Renderer::drawRect(237, 340, 28, 35, Color(0.3f, 0.5f, 0.8f, bfP));
+        Renderer::drawFilledRect(715, 340, 28, 35, winCol);
+        Renderer::drawFilledRect(757, 340, 28, 35, winCol);
+        Renderer::drawRect(715, 340, 28, 35, Color(0.3f, 0.5f, 0.8f, bfP));
+        Renderer::drawRect(757, 340, 28, 35, Color(0.3f, 0.5f, 0.8f, bfP));
 
-        // Garden – boundary fill approximation
+        // Gate door (grounded, base at y=170, top at y=290 where arch begins)
+        Renderer::drawFilledRect(430, 170, 120, 120,
+                                 Color(0.22f, 0.10f, 0.04f, bfP));
+        Renderer::drawFilledTriangle(430, 290, 550, 290, 490, 320,
+                                     Color(0.22f, 0.10f, 0.04f, bfP));
+        Renderer::drawFilledCircle(490, 230, 6, Color(0.85f, 0.65f, 0.10f, bfP));
+
+        // Courtyard garden between towers, at ground level (y=170-215)
         Polygon2D garden;
-        garden.vertices  = {{290,350},{420,350},{420,400},{290,400}};
-        garden.fillColor = Color(0.2f, 0.75f, 0.3f, bfP);
+        garden.vertices  = {{280,170},{700,170},{700,215},{280,215}};
+        garden.fillColor = Color(0.18f, 0.72f, 0.28f, bfP * 0.85f);
         scanLineFill(garden, bfP);
 
-        // Flowers
-        if (bfP > 0.7f) {
-            float flP = clamp((bfP-0.7f)*3.0f,0.0f,1.0f);
-            for (int fi = 0; fi < 5; ++fi) {
-                float fx = 300 + fi * 25;
-                midpointCircle((int)fx, 375, 8, Palette::pinkFlower(), flP, true);
+        // Flowers with stems
+        if (bfP > 0.6f) {
+            float flP = clamp((bfP - 0.6f) * 2.5f, 0.0f, 1.0f);
+            int flowerXs[] = {310, 355, 400, 445, 540, 585, 630, 670};
+            for (int fx : flowerXs) {
+                Renderer::drawLine((float)fx, 172.0f, (float)fx, 192.0f,
+                                   Color(0.12f, 0.55f, 0.12f, flP), 1.5f);
+                midpointCircle(fx, 198, 7, Palette::pinkFlower(), flP, true);
             }
         }
-        Renderer::drawText("Boundary Fill: Windows & Garden", 295, 325, Color(1,1,1,bfP));
+
+        Renderer::drawText("Boundary Fill: Windows & Garden", 285, 235,
+                           Color(1.0f, 1.0f, 1.0f, bfP));
     }
 
-    // Robot points at kingdom
-    g_robot.x = 100;
-    g_robot.y = 150;
-    g_robot.pointAt(490, 300);
+    // Robot points at the castle entrance
+    g_robot.x = 80;
+    g_robot.y = 170;
+    g_robot.pointAt(490, 230);
     g_robot.draw();
 
-    // Algorithm label
+    // Algorithm badge (one per frame)
     std::string algLabel;
     if      (p < 0.2f) algLabel = "Scan-Line Polygon Fill";
     else if (p < 0.5f) algLabel = "Flood Fill Algorithm";
     else                algLabel = "Boundary Fill Algorithm";
     Renderer::drawAlgorithmBadge(algLabel);
 }
+
 
 // =============================================================================
 //  SCENE 3 – CLIPPING ALGORITHMS
@@ -556,161 +580,255 @@ void SceneManager::renderPortal()
 {
     float p = progress();
 
-    // Dark, magical background
+    // Deep cosmic background
     Renderer::drawGradientBackground(
-        Color(0.05f, 0.02f, 0.20f),
-        Color(0.10f, 0.05f, 0.35f)
+        Color(0.02f, 0.01f, 0.10f),
+        Color(0.05f, 0.02f, 0.18f)
     );
-    drawStars(1.0f, m_elapsed * 1.5f);
+    drawStars(0.8f, m_elapsed * 0.8f);
 
-    // ── Define the clip window (the "portal") ─────────────────────────────
-    ClipWindow portal(300, 150, 980, 550);
+    // ── Define the "Royal Viewport" clip window ────────────────────────────
+    ClipWindow portal(200, 160, 1080, 580);
 
-    // Animate portal appearing
+    // Animate the viewport growing from centre
     float portalP = clamp(p * 5.0f, 0.0f, 1.0f);
-    ClipWindow animPortal(
-        portal.xMin + (1 - portalP) * 340,
-        portal.yMin + (1 - portalP) * 200,
-        portal.xMax - (1 - portalP) * 340,
-        portal.yMax - (1 - portalP) * 200
+    float shrink  = (1.0f - portalP);
+    ClipWindow vp(
+        portal.xMin + shrink * 440,
+        portal.yMin + shrink * 210,
+        portal.xMax - shrink * 440,
+        portal.yMax - shrink * 210
     );
 
-    // Draw portal glow
-    Renderer::drawFilledRect(animPortal.xMin-4, animPortal.yMin-4,
-                              animPortal.xMax-animPortal.xMin+8,
-                              animPortal.yMax-animPortal.yMin+8,
-                              Color(0.4f,0.2f,1.0f,0.3f*portalP));
-    Renderer::drawClipWindow(animPortal, Color(0.6f,0.3f,1.0f,portalP));
-    Renderer::drawText("Clip Window", animPortal.xMin+5, animPortal.yMin+5,
-                       Color(0.8f,0.5f,1.0f,portalP));
+    // Draw viewport interior (semi-transparent purple energy shield)
+    Renderer::drawFilledRect(vp.xMin, vp.yMin,
+                             vp.xMax - vp.xMin, vp.yMax - vp.yMin,
+                             Color(0.15f, 0.08f, 0.38f, 0.35f * portalP));
 
-    // ── Point Clipping – stars ─────────────────────────────────────────────
-    if (p > 0.1f) {
-        float pcP = clamp((p - 0.1f) * 5.0f, 0.0f, 1.0f);
-        srand(99);
-        for (int i = 0; i < 80; ++i) {
-            float sx = (float)(rand() % WINDOW_WIDTH);
-            float sy = 150.0f + (float)(rand() % 430);
-            bool inside = pointClip(sx, sy, animPortal);
-            Color c = inside
-                ? Color(1.0f, 0.95f, 0.3f, pcP)   // gold – inside = visible
-                : Color(0.4f, 0.4f,  0.5f, pcP * 0.3f); // dim – outside
-            Renderer::drawPoint(sx, sy, inside ? 3.0f : 1.5f, c);
+    // Outer neon glow border
+    for (int g = 1; g <= 4; ++g) {
+        float alpha = (0.15f / (float)g) * portalP;
+        Renderer::drawFilledRect(vp.xMin - g * 2, vp.yMin - g * 2,
+                                 vp.xMax - vp.xMin + g * 4, vp.yMax - vp.yMin + g * 4,
+                                 Color(0.60f, 0.20f, 1.00f, alpha));
+    }
+    Renderer::drawClipWindow(vp, Color(0.80f, 0.40f, 1.00f, portalP));
+
+    // Viewport corner labels
+    if (portalP > 0.5f) {
+        float la = clamp((portalP - 0.5f) * 2.0f, 0.0f, 1.0f);
+        Renderer::drawText("ROYAL VIEWPORT",
+                           vp.xMin + 12, vp.yMax - 22,
+                           Color(0.85f, 0.60f, 1.0f, la));
+        Renderer::drawText("CLIP ZONE",
+                           vp.xMax - 90, vp.yMin + 12,
+                           Color(0.85f, 0.60f, 1.0f, la));
+    }
+
+    // ═══════════════════════════════════════════════════════════════════════
+    //  PHASE 1 (p 0.10-0.40): Point Clipping
+    //  Neon Fireflies: Gold/Green inside viewport, cold grey outside
+    // ═══════════════════════════════════════════════════════════════════════
+    if (p > 0.10f) {
+        float pcP = clamp((p - 0.10f) / 0.30f, 0.0f, 1.0f);
+
+        srand(12345);
+        for (int i = 0; i < 90; ++i) {
+            float seedX = (float)(rand() % 1000) / 1000.0f;
+            float seedY = (float)(rand() % 1000) / 1000.0f;
+            float speed = 0.5f + (float)(rand() % 100) / 100.0f;
+
+            // Animate firefly floaty movement
+            float sx = 50.0f + seedX * (WINDOW_WIDTH - 100) + std::sin(m_elapsed * speed + i) * 25.0f;
+            float sy = 100.0f + seedY * (WINDOW_HEIGHT - 200) + std::cos(m_elapsed * speed * 0.8f + i) * 25.0f;
+
+            bool inside = pointClip(sx, sy, vp);
+            if (inside) {
+                // Gold glowing firefly inside (accepted)
+                float pulse = 0.6f + 0.4f * std::sin(m_elapsed * 4.0f + i);
+                // Outer glow
+                Renderer::drawPoint(sx, sy, 8.0f, Color(1.0f, 0.85f, 0.20f, pcP * pulse * 0.3f));
+                // Core
+                Renderer::drawPoint(sx, sy, 4.0f, Color(1.0f, 0.95f, 0.60f, pcP * pulse));
+            } else {
+                // Dim cold blue-grey firefly outside (rejected)
+                Renderer::drawPoint(sx, sy, 2.0f, Color(0.25f, 0.30f, 0.45f, pcP * 0.35f));
+            }
         }
         srand((unsigned)time(nullptr));
-        if (pcP > 0.3f)
-            Renderer::drawText("Point Clipping: stars inside portal are bright",
-                               310, 540, Color(1,1,1,clamp((pcP-0.3f)*2.0f,0,1)));
+
+        if (pcP > 0.20f) {
+            float la = clamp((pcP - 0.20f) * 2.5f, 0.0f, 1.0f);
+            Renderer::drawText(
+                "Point Clipping: Fireflies inside viewport glow gold (accepted); outside are dim (rejected)",
+                vp.xMin + 12, vp.yMin + 20, Color(1.0f, 0.90f, 0.40f, la));
+        }
     }
 
-    // ── Cohen-Sutherland line clipping – roads ────────────────────────────
-    if (p > 0.3f) {
-        float csP = clamp((p - 0.3f) * 4.0f, 0.0f, 1.0f);
-        // Several lines spanning the whole screen
-        struct LS { float x1,y1,x2,y2; Color col; };
-        std::vector<LS> lines = {
-            {50,  200, 1230, 500, Color(0.9f,0.5f,0.1f)},
-            {50,  350, 1230, 200, Color(0.1f,0.9f,0.6f)},
-            {400, 80,  600,  600, Color(0.9f,0.2f,0.5f)},
-            {100, 480, 1150, 160, Color(0.3f,0.6f,1.0f)},
-        };
+    // ═══════════════════════════════════════════════════════════════════════
+    //  PHASE 2 (p 0.35-0.60): Cohen-Sutherland Line Clipping
+    //  Sweeping Neon Lighthouse Searchlights
+    // ═══════════════════════════════════════════════════════════════════════
+    if (p > 0.35f) {
+        float csP = clamp((p - 0.35f) / 0.25f, 0.0f, 1.0f);
 
-        for (auto& ln : lines) {
-            // Draw original (dim)
-            Renderer::drawLine(ln.x1,ln.y1, ln.x2,ln.y2,
-                               Color(ln.col.r*0.25f,ln.col.g*0.25f,ln.col.b*0.25f,csP*0.5f),
-                               1.5f);
-            // Clip with Cohen-Sutherland
-            float cx1=ln.x1, cy1=ln.y1, cx2=ln.x2, cy2=ln.y2;
-            if (cohenSutherlandClip(cx1,cy1,cx2,cy2,animPortal)) {
-                Renderer::drawLine(cx1,cy1, cx2,cy2, Color(ln.col.r,ln.col.g,ln.col.b,csP), 3.0f);
+        // Lighthouse base at bottom-center of viewport
+        float lhX = (vp.xMin + vp.xMax) * 0.5f;
+        float lhY = vp.yMin + 15.0f;
+
+        // Sweep angle back and forth
+        float sweepBase = 15.0f + 150.0f * (0.5f + 0.5f * std::sin(m_elapsed * 0.9f));
+
+        // Draw a multi-ray cone of light (5 rays separated slightly to form a beam)
+        for (int ray = -2; ray <= 2; ++ray) {
+            float angleRad = (sweepBase + ray * 1.5f) * 3.14159f / 180.0f;
+            float tx = lhX + 900.0f * std::cos(angleRad);
+            float ty = lhY + 900.0f * std::sin(angleRad);
+
+            // Draw full background ray extremely faint
+            Renderer::drawLine(lhX, lhY, tx, ty, Color(0.1f, 0.05f, 0.2f, csP * 0.2f), 1.0f);
+
+            // Clip the searchlight beam
+            float cx1 = lhX, cy1 = lhY, cx2 = tx, cy2 = ty;
+            if (cohenSutherlandClip(cx1, cy1, cx2, cy2, vp)) {
+                // Draw clipped searchlight beam inside (bright cyan glow)
+                float alpha = csP * (1.0f - std::abs(ray) * 0.25f);
+                Renderer::drawLine(cx1, cy1, cx2, cy2, Color(0.0f, 0.90f, 1.0f, alpha), 3.0f - std::abs(ray) * 0.5f);
+                // Glowing white dots at exit points
+                if (std::abs(ray) == 0) {
+                    Renderer::drawPoint(cx2, cy2, 7.0f, Color(1, 1, 1, csP));
+                    Renderer::drawPoint(cx2, cy2, 12.0f, Color(0.0f, 0.9f, 1.0f, csP * 0.4f));
+                }
             }
         }
-        if (csP > 0.4f)
-            Renderer::drawText("Cohen-Sutherland: only visible segments kept",
-                               310, 158, Color(1,1,1,clamp((csP-0.4f)*2.0f,0,1)));
+
+        // Draw physical lighthouse tower
+        Renderer::drawFilledRect(lhX - 10, lhY - 10, 20, 25, Color(0.15f, 0.15f, 0.25f, csP));
+        Renderer::drawFilledCircle(lhX, lhY + 15, 8.0f, Color(1.0f, 0.95f, 0.4f, csP));
+        Renderer::drawCircle(lhX, lhY + 15, 12.0f, Color(1.0f, 0.8f, 0.2f, csP * 0.5f));
+
+        if (csP > 0.20f) {
+            float la = clamp((csP - 0.20f) * 2.5f, 0.0f, 1.0f);
+            Renderer::drawText(
+                "Cohen-Sutherland: Sweeping lighthouse searchlights clipped at viewport edges",
+                vp.xMin + 12, vp.yMin + 38, Color(0.20f, 0.85f, 1.0f, la));
+        }
     }
 
-    // ── Liang-Barsky – laser beams ─────────────────────────────────────────
-    if (p > 0.55f) {
-        float lbP = clamp((p - 0.55f) * 4.0f, 0.0f, 1.0f);
-        struct LS2 { float x1,y1,x2,y2; Color col; };
-        std::vector<LS2> lasers = {
-            {0,   250, 1280, 450, Color(1.0f,0.2f,0.8f)},
-            {0,   450, 1280, 250, Color(0.2f,1.0f,0.5f)},
-            {640, 100, 640,  620, Color(1.0f,0.8f,0.1f)},
-        };
-        for (auto& ln : lasers) {
-            Renderer::drawLine(ln.x1,ln.y1,ln.x2,ln.y2,
-                               Color(ln.col.r*0.15f,ln.col.g*0.15f,ln.col.b*0.15f,lbP*0.4f),
-                               1.0f);
-            float cx1=ln.x1,cy1=ln.y1,cx2=ln.x2,cy2=ln.y2;
-            if (liangBarskyClip(cx1,cy1,cx2,cy2,animPortal)) {
-                glLineWidth(3.0f);
-                glBegin(GL_LINES);
-                glColor4f(ln.col.r,ln.col.g,ln.col.b,lbP);
-                glVertex2f(cx1,cy1);
-                glColor4f(1,1,1,lbP);
-                glVertex2f(cx2,cy2);
-                glEnd();
-                glLineWidth(1.0f);
+    // ═══════════════════════════════════════════════════════════════════════
+    //  PHASE 3 (p 0.57-0.78): Liang-Barsky Line Clipping
+    //  Vertical Laser Grid with Parametric t-Pulses
+    // ═══════════════════════════════════════════════════════════════════════
+    if (p > 0.57f) {
+        float lbP = clamp((p - 0.57f) / 0.21f, 0.0f, 1.0f);
+
+        int numLasers = 6;
+        for (int i = 0; i < numLasers; ++i) {
+            float lx = vp.xMin + (vp.xMax - vp.xMin) * (0.15f + 0.7f * ((float)i / (float)(numLasers - 1)));
+            float ly1 = 80.0f;
+            float ly2 = 660.0f;
+
+            // Draw unclipped laser path (extremely dim neon red/pink line)
+            Renderer::drawLine(lx, ly1, lx, ly2, Color(0.35f, 0.10f, 0.15f, lbP * 0.4f), 1.0f);
+
+            // Clip the laser line
+            float cx1 = lx, cy1 = ly1, cx2 = lx, cy2 = ly2;
+            if (liangBarskyClip(cx1, cy1, cx2, cy2, vp)) {
+                // Draw clipped laser inside viewport (bright neon pink/magenta)
+                Renderer::drawLine(cx1, cy1, cx2, cy2, Color(1.0f, 0.15f, 0.45f, lbP), 3.0f);
+
+                // Parametric t energy pulse traveling along the clipped segment
+                float t_pulse = std::fmod(m_elapsed * 0.6f + (float)i * 0.18f, 1.0f);
+                float px = cx1 + t_pulse * (cx2 - cx1);
+                float py = cy1 + t_pulse * (cy2 - cy1);
+
+                // Draw pulse glow
+                Renderer::drawPoint(px, py, 10.0f, Color(1.0f, 0.40f, 0.70f, lbP * 0.4f));
+                Renderer::drawPoint(px, py, 4.0f, Color(1.0f, 1.0f, 1.0f, lbP));
             }
         }
-        if (lbP > 0.4f)
-            Renderer::drawText("Liang-Barsky: parametric laser clipping",
-                               310, 158, Color(0.5f,1.0f,0.5f,clamp((lbP-0.4f)*2.0f,0,1)));
+
+        if (lbP > 0.20f) {
+            float la = clamp((lbP - 0.20f) * 2.5f, 0.0f, 1.0f);
+            Renderer::drawText(
+                "Liang-Barsky: Grid lasers clipped; glowing energy pulses move parameterically along t [0, 1]",
+                vp.xMin + 12, vp.yMin + 56, Color(1.0f, 0.35f, 0.60f, la));
+        }
     }
 
-    // ── Sutherland-Hodgman polygon clipping – cloud ────────────────────────
-    if (p > 0.75f) {
-        float shP = clamp((p - 0.75f) * 5.0f, 0.0f, 1.0f);
+    // ═══════════════════════════════════════════════════════════════════════
+    //  PHASE 4 (p 0.76-1.0): Sutherland-Hodgman Polygon Clipping
+    //  Rotating Golden Crown
+    // ═══════════════════════════════════════════════════════════════════════
+    if (p > 0.76f) {
+        float shP = clamp((p - 0.76f) / 0.24f, 0.0f, 1.0f);
 
-        // A floating cloud polygon
-        float cPhase = m_elapsed * 0.8f;
-        std::vector<Point2D> cloud = {
-            {200 + std::sin(cPhase)*30, 320},
-            {320 + std::cos(cPhase)*20, 250},
-            {460, 280 + std::sin(cPhase)*20},
-            {550, 310},
-            {600 + std::sin(cPhase)*25, 400},
-            {500, 460},
-            {350, 470},
-            {200, 430},
-            {150 + std::cos(cPhase)*20, 380}
+        // Crown center
+        float ccX = vp.xMin + (vp.xMax - vp.xMin) * 0.78f;
+        float ccY = (vp.yMin + vp.yMax) * 0.5f;
+
+        // Base shape of a crown (9 vertices CCW relative to center)
+        std::vector<Point2D> baseCrown = {
+            {-70, -40}, {70, -40}, {80, 20}, {60, 40}, {30, 10}, {0, 60}, {-30, 10}, {-60, 40}, {-80, 20}
         };
 
-        // Original (outside clip window, dim)
-        Renderer::drawPolygon(cloud, Color(0.4f,0.4f,0.6f,shP*0.4f));
+        // Rotate and scale the crown
+        float angle = m_elapsed * 1.3f;
+        float scale = 1.6f;
+        std::vector<Point2D> transformedCrown;
+        for (auto& pt : baseCrown) {
+            float rx = (pt.x * std::cos(angle) - pt.y * std::sin(angle)) * scale;
+            float ry = (pt.x * std::sin(angle) + pt.y * std::cos(angle)) * scale;
+            transformedCrown.push_back({ccX + rx, ccY + ry});
+        }
 
-        // Clip with Sutherland-Hodgman
-        std::vector<Point2D> clipped = sutherlandHodgmanClip(cloud, animPortal);
+        // Draw unclipped crown wireframe in background (dim white/grey)
+        Renderer::drawPolygon(transformedCrown, Color(0.40f, 0.40f, 0.50f, shP * 0.35f));
+
+        // Clip the crown polygon to viewport
+        std::vector<Point2D> clipped = sutherlandHodgmanClip(transformedCrown, vp);
         if (!clipped.empty()) {
-            Renderer::drawFilledPolygon(clipped, Color(0.8f,0.8f,1.0f,shP*0.5f));
-            Renderer::drawPolygon(clipped, Color(0.9f,0.9f,1.0f,shP));
+            // Draw filled golden crown inside (accepted portion)
+            Renderer::drawFilledPolygon(clipped, Color(0.95f, 0.75f, 0.15f, shP * 0.7f));
+            Renderer::drawPolygon(clipped, Color(1.0f, 0.95f, 0.50f, shP));
+
+            // Draw small crown jewels (sparkly stars) inside the clipped shape
+            for (auto& pt : clipped) {
+                // If the vertex is inside viewport boundaries, draw a small diamond jewel on it
+                if (pointClip(pt.x, pt.y, vp)) {
+                    float jewelPulse = 0.5f + 0.5f * std::sin(m_elapsed * 6.0f + pt.x);
+                    Renderer::drawPoint(pt.x, pt.y, 6.0f, Color(0.0f, 0.9f, 1.0f, shP * jewelPulse));
+                }
+            }
         }
-        if (shP > 0.4f)
-            Renderer::drawText("Sutherland-Hodgman: polygon cloud clipped to portal",
-                               310, 540, Color(1,1,1,clamp((shP-0.4f)*2.0f,0,1)));
+
+        if (shP > 0.20f) {
+            float la = clamp((shP - 0.20f) * 2.5f, 0.0f, 1.0f);
+            Renderer::drawText(
+                "Sutherland-Hodgman: Floating golden crown clipped edge-by-edge to the viewport boundary",
+                vp.xMin + 12, vp.yMin + 74, Color(1.0f, 0.85f, 0.30f, la));
+        }
     }
 
-    // Robot stands beside portal
-    g_robot.x = 180;
+    // Robot waves beside viewport
+    g_robot.x = 75;
     g_robot.y = 150;
     g_robot.startAction(RobotAction::WAVE);
     g_robot.draw();
 
-    // Algorithm label
+    // Single algorithm badge
     std::string algLabel;
-    if      (p < 0.3f)  algLabel = "Point Clipping Algorithm";
-    else if (p < 0.55f) algLabel = "Cohen-Sutherland Line Clipping";
-    else if (p < 0.75f) algLabel = "Liang-Barsky Line Clipping";
-    else                 algLabel = "Sutherland-Hodgman Polygon Clipping";
+    if      (p < 0.35f)  algLabel = "Point Clipping Algorithm";
+    else if (p < 0.57f)  algLabel = "Cohen-Sutherland Line Clipping";
+    else if (p < 0.76f)  algLabel = "Liang-Barsky Line Clipping";
+    else                  algLabel = "Sutherland-Hodgman Polygon Clipping";
     Renderer::drawAlgorithmBadge(algLabel);
 }
 
+
 // =============================================================================
 //  SCENE 4 – TRANSFORMATIONS
-//  Houses translate, windmill rotates, trees scale, composites happen.
+//  Houses translate, clock hands rotate, trees scale, composites happen.
 // =============================================================================
 void SceneManager::renderTransform()
 {
@@ -748,52 +866,60 @@ void SceneManager::renderTransform()
                                hb[0].x, hb[0].y+10, Color(1,1,0.3f,tP));
     }
 
-    // ── ROTATION – windmill ────────────────────────────────────────────────
+    // ── ROTATION – Royal Clock Tower ───────────────────────────────────────
     if (p > 0.2f) {
         float rP  = clamp((p-0.2f)*4.0f, 0.0f, 1.0f);
 
-        // Tower: base at ground (y=170), hub at top of tower
         float cx = 300.0f;
-        float towerBase = 170.0f;   // ground level (y coordinate)
-        float towerH    = 200.0f;   // tower height in pixels
-        float hubY      = towerBase + towerH; // hub is at TOP of tower (higher Y)
+        float towerBase = 170.0f;
+        float towerH    = 150.0f;
+        float clockY    = towerBase + towerH; // center of clock face
 
-        // Windmill pole (tower body)
-        Renderer::drawFilledRect(cx - 14, towerBase, 28, towerH, Palette::castleGray());
+        // Grey brick tower
+        Color gray = Palette::castleGray();
+        Color darkGray(gray.r * 0.9f, gray.g * 0.9f, gray.b * 0.9f, gray.a);
+        Color borderGray(gray.r * 0.6f, gray.g * 0.6f, gray.b * 0.6f, gray.a);
+        Renderer::drawFilledRect(cx - 20, towerBase, 40, towerH, darkGray);
+        Renderer::drawRect(cx - 20, towerBase, 40, towerH, borderGray);
 
-        // Slow spin: 45 degrees per second
-        float angle = m_elapsed * 45.0f;
+        // Clock roof (triangular cap)
+        std::vector<Point2D> roof = {
+            {cx - 25, clockY + 25}, {cx + 25, clockY + 25}, {cx, clockY + 55}
+        };
+        Renderer::drawFilledPolygon(roof, Palette::roofRed());
 
-        // Each blade: thin tapered rectangle defined at ORIGIN facing right (+X),
-        // then rotated into place around the hub.
-        // Blade shape (at origin): root near (0,0), tip at (bladeLen, 0)
-        float bladeLen = 72.0f;
-        for (int b = 0; b < 4; ++b) {
-            float bladeAngle = angle + b * 90.0f;
-            // Composite: rotate around origin, then translate to hub
-            Matrix3x3 R = compositeTransform({
-                rotationMatrix(bladeAngle),
-                translationMatrix(cx, hubY)
-            });
-            // Blade polygon: tapered – wide at root, narrow at tip
-            std::vector<Point2D> blade = {
-                {  4.0f,  -6.0f },
-                { bladeLen, -3.0f },
-                { bladeLen,  3.0f },
-                {  4.0f,   6.0f }
-            };
-            auto rb = transformPoints(blade, R);
-            Renderer::drawFilledPolygon(rb, Color(0.92f, 0.87f, 0.58f, rP));
-            Renderer::drawPolygon(rb, Color(0.70f, 0.60f, 0.30f, rP));
-        }
+        // Clock face (circle)
+        Renderer::drawFilledCircle(cx, clockY, 26, Color(0.95f, 0.95f, 0.90f, rP));
+        Renderer::drawCircle(cx, clockY, 26, Color(0.3f, 0.2f, 0.1f, rP), 32);
 
-        // Centre hub circle
-        Renderer::drawFilledCircle(cx, hubY, 11, Color(0.6f, 0.40f, 0.15f, rP));
-        Renderer::drawCircle(cx, hubY, 11, Color(0.85f, 0.65f, 0.25f, rP));
+        // Clock hands (rotating using 3x3 transformation matrix)
+        float minuteAngle = m_elapsed * 120.0f; // 120 deg/s
+        float hourAngle   = m_elapsed * 10.0f;  // 10 deg/s
+
+        // Minute hand (longer, thin)
+        Matrix3x3 R_min = compositeTransform({
+            rotationMatrix(minuteAngle),
+            translationMatrix(cx, clockY)
+        });
+        std::vector<Point2D> minHand = { {0, 0}, {0, 20} };
+        auto tMin = transformPoints(minHand, R_min);
+        Renderer::drawLine(tMin[0].x, tMin[0].y, tMin[1].x, tMin[1].y, Color(0.1f, 0.1f, 0.1f, rP), 2.5f);
+
+        // Hour hand (shorter, thicker)
+        Matrix3x3 R_hour = compositeTransform({
+            rotationMatrix(hourAngle),
+            translationMatrix(cx, clockY)
+        });
+        std::vector<Point2D> hourHand = { {0, 0}, {0, 13} };
+        auto tHour = transformPoints(hourHand, R_hour);
+        Renderer::drawLine(tHour[0].x, tHour[0].y, tHour[1].x, tHour[1].y, Color(0.1f, 0.1f, 0.1f, rP), 4.0f);
+
+        // Center pin
+        Renderer::drawFilledCircle(cx, clockY, 3.5f, Color(0.8f, 0.6f, 0.1f, rP));
 
         if (rP > 0.1f)
-            Renderer::drawText("Rotation: R(theta) matrix around pivot",
-                               cx - 55, hubY - 20, Color(1.0f, 0.85f, 0.3f, rP));
+            Renderer::drawText("Rotation: R(theta) hands around center pivot",
+                               cx - 100, clockY - 55, Color(1.0f, 0.85f, 0.3f, rP));
     }
 
     // ── SCALING – trees grow ──────────────────────────────────────────────
@@ -897,68 +1023,7 @@ void SceneManager::renderTransform()
 // =============================================================================
 //  SCENE 5 – ISOMETRIC PROJECTION
 //  The flat kingdom converts to a 2.5D isometric view.
-// =============================================================================
-void SceneManager::renderIsometric()
-{
-    float p = progress();
 
-    Renderer::drawGradientBackground(
-        Color(0.15f,0.30f,0.60f),
-        Color(0.50f,0.75f,0.95f)
-    );
-
-    // Isometric projection setup
-    IsoProjection iso(55.0f, WINDOW_WIDTH * 0.5f, WINDOW_HEIGHT * 0.38f);
-
-    // ── Ground grid ────────────────────────────────────────────────────────
-    float gridP = clamp(p * 3.0f, 0.0f, 1.0f);
-    drawIsoGrid(iso, 12, 8, Color(0.25f,0.72f,0.35f), Color(0.22f,0.65f,0.30f), gridP);
-
-    // ── Buildings ──────────────────────────────────────────────────────────
-    if (p > 0.2f) {
-        float bP = clamp((p-0.2f)*4.0f, 0.0f, 1.0f);
-
-        // Castle towers (isometric boxes)
-        drawIsoBox(iso, 0,0,0, 2,3,2, Color(0.6f,0.6f,0.65f),Color(0.45f,0.45f,0.5f),Color(0.5f,0.5f,0.55f), bP);
-        drawIsoBox(iso, 4,0,0, 2,3,2, Color(0.6f,0.6f,0.65f),Color(0.45f,0.45f,0.5f),Color(0.5f,0.5f,0.55f), bP);
-        drawIsoBox(iso, 0,0,4, 2,3,2, Color(0.6f,0.6f,0.65f),Color(0.45f,0.45f,0.5f),Color(0.5f,0.5f,0.55f), bP);
-        drawIsoBox(iso, 4,0,4, 2,3,2, Color(0.6f,0.6f,0.65f),Color(0.45f,0.45f,0.5f),Color(0.5f,0.5f,0.55f), bP);
-
-        // Main keep
-        drawIsoBox(iso, 1.5f,0,1.5f, 3,4.5f,3,
-                   Color(0.70f,0.60f,0.55f),Color(0.55f,0.45f,0.40f),Color(0.62f,0.52f,0.47f), bP);
-    }
-
-    // ── Houses ────────────────────────────────────────────────────────────
-    if (p > 0.4f) {
-        float hP = clamp((p-0.4f)*4.0f, 0.0f, 1.0f);
-        drawIsoBox(iso, -3,0,1, 2,2,2, Color(0.85f,0.75f,0.55f),Color(0.65f,0.55f,0.35f),Color(0.75f,0.65f,0.45f), hP);
-        drawIsoBox(iso,  7,0,2, 2,2,2, Color(0.75f,0.80f,0.90f),Color(0.60f,0.65f,0.75f),Color(0.68f,0.73f,0.83f), hP);
-        drawIsoBox(iso, -2,0,5, 2,2.5f,2, Color(0.88f,0.70f,0.60f),Color(0.68f,0.50f,0.40f),Color(0.78f,0.60f,0.50f), hP);
-    }
-
-    // ── Trees ─────────────────────────────────────────────────────────────
-    if (p > 0.6f) {
-        float tP  = clamp((p-0.6f)*4.0f, 0.0f, 1.0f);
-        // Tree trunks
-        drawIsoBox(iso, -1,0,2, 0.4f,1.5f,0.4f, Color(0.55f,0.35f,0.15f),Color(0.40f,0.25f,0.10f),Color(0.48f,0.30f,0.12f), tP);
-        drawIsoBox(iso,  7,0,0, 0.4f,1.5f,0.4f, Color(0.55f,0.35f,0.15f),Color(0.40f,0.25f,0.10f),Color(0.48f,0.30f,0.12f), tP);
-        // Foliage (wider/taller box)
-        drawIsoBox(iso, -1.3f,1.5f,1.7f, 1.0f,1.5f,1.0f, Color(0.2f,0.75f,0.3f),Color(0.15f,0.6f,0.25f),Color(0.18f,0.68f,0.28f), tP);
-        drawIsoBox(iso,  6.7f,1.5f,-0.3f, 1.0f,1.5f,1.0f, Color(0.2f,0.75f,0.3f),Color(0.15f,0.6f,0.25f),Color(0.18f,0.68f,0.28f), tP);
-    }
-
-    // ── Robot in iso view ─────────────────────────────────────────────────
-    Point2D rIso = iso.project({-3.5f, 0, 3});
-    g_robot.x = rIso.x;
-    g_robot.y = rIso.y - 150; // lift off ground plane
-    g_robot.scale = 0.7f;
-    g_robot.startAction(RobotAction::CELEBRATE);
-    g_robot.draw();
-    g_robot.scale = 1.0f;
-
-    Renderer::drawAlgorithmBadge("Isometric Projection Matrix");
-}
 
 // =============================================================================
 //  SCENE 6 – CINEMATIC FINALE

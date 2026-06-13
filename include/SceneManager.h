@@ -25,9 +25,8 @@ enum class SceneID {
     COLOURING  = 2,
     PORTAL     = 3,
     TRANSFORM  = 4,
-    ISOMETRIC  = 5,
-    CINEMATIC  = 6,
-    COUNT      = 7
+    CINEMATIC  = 5,
+    COUNT      = 6
 };
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -84,7 +83,6 @@ private:
     void renderColouring();
     void renderPortal();
     void renderTransform();
-    void renderIsometric();
     void renderCinematic();
 
     // ── Shared background helpers ──────────────────────────────────────────

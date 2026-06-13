@@ -121,8 +121,7 @@ void keyboard(unsigned char key, int /*x*/, int /*y*/)
     case '3': sm.jumpTo(SceneID::COLOURING); break;
     case '4': sm.jumpTo(SceneID::PORTAL);    break;
     case '5': sm.jumpTo(SceneID::TRANSFORM); break;
-    case '6': sm.jumpTo(SceneID::ISOMETRIC); break;
-    case '7': sm.jumpTo(SceneID::CINEMATIC); break;
+    case '6': sm.jumpTo(SceneID::CINEMATIC); break;
     }
 }
 
@@ -184,7 +183,7 @@ int main(int argc, char* argv[])
               << "==========================================================\n"
               << " SPACE / Right Arrow : Next scene\n"
               << " Left Arrow          : Previous scene\n"
-              << " 1-7                 : Jump to scene 1-7\n"
+              << " 1-6                 : Jump to scene 1-6\n"
               << " F                   : Toggle full-screen\n"
               << " ESC / Q             : Quit\n"
               << "==========================================================\n"
@@ -194,8 +193,7 @@ int main(int argc, char* argv[])
               << "  3. Scan-Line / Flood Fill / Boundary Fill\n"
               << "  4. Point / Cohen-Sutherland / Liang-Barsky / S-H Clipping\n"
               << "  5. Translation / Rotation / Scaling / Composite Transforms\n"
-              << "  6. Isometric Projection\n"
-              << "  7. Painter's Algorithm + Parallax + Fireworks\n"
+              << "  6. Painter's Algorithm + Parallax + Fireworks\n"
               << "==========================================================\n";
 
     // ── Enter main loop ──────────────────────────────────────────────────
