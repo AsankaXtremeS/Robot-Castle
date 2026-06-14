@@ -19,8 +19,9 @@ setlocal EnableDelayedExpansion
 REM ── Configuration ────────────────────────────────────────────────────────────
 
 REM If FreeGLUT headers/libs are in a custom location, set these:
-REM set FREEGLUT_INC=C:\freeglut\include
-REM set FREEGLUT_LIB=C:\freeglut\lib
+set FREEGLUT_INC=C:\Users\LOQ\Downloads\Glut\freeglut\include
+set FREEGLUT_LIB=C:\Users\LOQ\Downloads\Glut\freeglut\lib
+set FREEGLUT_BIN=C:\Users\LOQ\Downloads\Glut\freeglut\bin
 
 REM Auto-detect common install locations
 if exist "%USERPROFILE%\Desktop\Glut\freeglut\include\GL\freeglut.h" (

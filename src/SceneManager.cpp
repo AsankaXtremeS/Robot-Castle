@@ -195,8 +195,8 @@ void SceneManager::drawHUD()
         Renderer::drawSceneTitle(info.title, info.subtitle, titleAlpha);
     }
 
-    // Algorithm badge – always visible
-    Renderer::drawAlgorithmBadge(info.subtitle, 0.85f);
+    // Note: each scene's render function draws its own drawAlgorithmBadge()
+    // so we skip it here to prevent a second badge stacking on top.
 
     // Scene timer / progress bar
     float dur = info.durationSec;
@@ -927,26 +927,34 @@ void SceneManager::renderTransform()
         float sP  = clamp((p-0.45f)*4.0f, 0.0f, 1.0f);
         float grow = sP; // 0→1
 
+        // Pivot = (tx, ty) which is the base of the trunk at ground level.
+        // All tree vertices are defined upward from ty so the ground anchor
+        // never shifts when the scaling matrix is applied.
         float tx = 550, ty = 170;
-        Matrix3x3 S = scalingAroundPoint(grow*1.0f, grow*1.5f, tx, ty);
 
-        std::vector<Point2D> treeBase = {
-            {tx-15, ty}, {tx+15, ty}, {tx, ty+100}
-        };
-        std::vector<Point2D> treeTop = {
-            {tx-25, ty+70}, {tx+25, ty+70}, {tx, ty+150}
-        };
+        // Trunk: from ground (ty) upward by 40px
         std::vector<Point2D> treeTrunk = {
-            {tx-8, ty}, {tx+8, ty}, {tx+8, ty-40}, {tx-8, ty-40}
+            {tx-8, ty}, {tx+8, ty}, {tx+8, ty+40}, {tx-8, ty+40}
         };
+        // Lower canopy triangle: base at trunk top (ty+40), peak at ty+140
+        std::vector<Point2D> treeBase = {
+            {tx-25, ty+40}, {tx+25, ty+40}, {tx, ty+140}
+        };
+        // Upper canopy triangle: base at ty+100, peak at ty+190
+        std::vector<Point2D> treeTop = {
+            {tx-18, ty+100}, {tx+18, ty+100}, {tx, ty+190}
+        };
+
+        // Scale around the ground anchor (tx, ty) so the base never lifts
+        Matrix3x3 S = scalingAroundPoint(grow, grow, tx, ty);
 
         Renderer::drawFilledPolygon(transformPoints(treeTrunk, S), Palette::woodBrown());
         Renderer::drawFilledPolygon(transformPoints(treeBase,  S), Palette::leafGreen());
         Renderer::drawFilledPolygon(transformPoints(treeTop,   S), Palette::leafGreen());
 
         if (sP > 0.1f)
-            Renderer::drawText("Scaling: S(sx,sy) matrix",
-                               tx-30, ty+160, Color(0.3f,1.0f,0.4f,sP));
+            Renderer::drawText("Scaling: S(sx,sy) matrix – pivot at tree base",
+                               tx-60, ty+205*grow + 5, Color(0.3f,1.0f,0.4f,sP));
     }
 
     // ── COMPOSITE TRANSFORMATION – orbiting sun ────────────────────────────

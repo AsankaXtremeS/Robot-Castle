@@ -9,6 +9,7 @@
 #include <vector>
 #include <stack>
 #include <cmath>
+#include <climits>
 
 // ─────────────────────────────────────────────────────────────────────────────
 //  Edge table entry for scan-line fill
@@ -134,7 +135,9 @@ void floodFill(int seedX, int seedY,
     const int dy[4] = {0,  0, 1, -1};
 
     while (!stk.empty()) {
-        auto [x, y] = stk.top(); stk.pop();
+        int x = stk.top().first;
+        int y = stk.top().second;
+        stk.pop();
 
         if (x < (int)bounds.xMin || x > (int)bounds.xMax ||
             y < (int)bounds.yMin || y > (int)bounds.yMax) continue;
@@ -144,7 +147,7 @@ void floodFill(int seedX, int seedY,
         setPixel(x, y, fillColor);
 
         for (int d = 0; d < 4; ++d)
-            stk.push({x + dx[d], y + dy[d]});
+            stk.push(std::make_pair(x + dx[d], y + dy[d]));
     }
 }
 
@@ -175,7 +178,9 @@ void boundaryFill(int seedX, int seedY,
     const int dy[4] = {0,  0, 1, -1};
 
     while (!stk.empty()) {
-        auto [x, y] = stk.top(); stk.pop();
+        int x = stk.top().first;
+        int y = stk.top().second;
+        stk.pop();
 
         if (x < (int)bounds.xMin || x > (int)bounds.xMax ||
             y < (int)bounds.yMin || y > (int)bounds.yMax) continue;
@@ -186,7 +191,7 @@ void boundaryFill(int seedX, int seedY,
         setPixel(x, y, fillColor);
 
         for (int d = 0; d < 4; ++d)
-            stk.push({x + dx[d], y + dy[d]});
+            stk.push(std::make_pair(x + dx[d], y + dy[d]));
     }
 }
 

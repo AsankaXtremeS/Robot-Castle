@@ -162,33 +162,57 @@ void drawCentredText(const std::string& text, float y,
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
-//  Algorithm badge – shown in the corner to label which algorithm is active
+//  Algorithm badge – shown in the corner to label which algorithm is active.
+//  Splits the label at " · " to render up to two rows so long names never
+//  overflow or stack on top of each other.
 // ─────────────────────────────────────────────────────────────────────────────
 void drawAlgorithmBadge(const std::string& algoName, float alpha)
 {
-    float bx = 10, by = WINDOW_HEIGHT - 40;
-    float bw = 340, bh = 30;
+    // Split label at " · " into up to two lines
+    std::string line1 = algoName, line2;
+    size_t sep = algoName.find(" \xc2\xb7 ");   // UTF-8 middle dot
+    if (sep == std::string::npos)
+        sep = algoName.find(" . ");             // ASCII fallback
+    if (sep == std::string::npos)
+        sep = algoName.find(" - ");             // dash fallback
+    if (sep != std::string::npos) {
+        line1 = algoName.substr(0, sep);
+        line2 = algoName.substr(sep + 3);       // skip " · "
+    }
+
+    bool twoLines = !line2.empty();
+    float bx = 10;
+    float bw = 440;
+    float bh = twoLines ? 50.0f : 30.0f;
+    float by = WINDOW_HEIGHT - bh - 10;
 
     // Dark background panel
     glEnable(GL_BLEND);
     glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
 
-    glColor4f(0.0f, 0.0f, 0.0f, 0.6f * alpha);
+    glColor4f(0.0f, 0.0f, 0.0f, 0.65f * alpha);
     glBegin(GL_QUADS);
-    glVertex2f(bx, by); glVertex2f(bx+bw, by);
-    glVertex2f(bx+bw, by+bh); glVertex2f(bx, by+bh);
+    glVertex2f(bx,      by);      glVertex2f(bx + bw, by);
+    glVertex2f(bx + bw, by + bh); glVertex2f(bx,      by + bh);
     glEnd();
 
     // Accent left bar
     glColor4f(0.3f, 0.8f, 1.0f, alpha);
     glBegin(GL_QUADS);
-    glVertex2f(bx, by); glVertex2f(bx+4, by);
-    glVertex2f(bx+4, by+bh); glVertex2f(bx, by+bh);
+    glVertex2f(bx,     by);      glVertex2f(bx + 4, by);
+    glVertex2f(bx + 4, by + bh); glVertex2f(bx,     by + bh);
     glEnd();
 
-    // Label
-    drawLargeText("  " + algoName, bx + 8, by + 8,
-                  Color(0.3f, 0.9f, 1.0f, alpha));
+    // Text – first line (top row)
+    Color textCol(0.3f, 0.9f, 1.0f, alpha);
+    if (twoLines) {
+        drawLargeText("  " + line1, bx + 8, by + bh - 22, textCol);
+        // Second line (bottom row) in slightly dimmer colour
+        Color subCol(0.6f, 0.85f, 1.0f, alpha * 0.85f);
+        drawLargeText("  " + line2, bx + 8, by + 6, subCol);
+    } else {
+        drawLargeText("  " + line1, bx + 8, by + 8, textCol);
+    }
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
